@@ -5,7 +5,7 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 from augmentation import *
 from lxml import etree
-
+from torchvision import transforms
 
 
 import warnings
@@ -92,6 +92,19 @@ class MainDataset(data.Dataset):
         bboxes = dictforarray['bboxes'].numpy()
         n_truth = len(bboxes)
 
+
+
+        if len(bboxes) > self.max_truth:
+            bboxes = bboxes[:self.max_truth]
+            n_true = self.max_truth
+        else:
+            zero_fill = self.max_truth - len(bboxes)
+            null_pad = -1 * (np.ones(5 * zero_fill).reshape(zero_fill, 5))
+            if n_truth == 0:
+                bboxes = null_pad
+            else:
+                bboxes = np.concatenate([bboxes, null_pad])
+
         dictforarray['bboxes'] = torch.from_numpy(bboxes)
         dictforarray['n_true'] = n_truth
         return dictforarray
@@ -136,6 +149,8 @@ def getdatasets(path_dataset, batch_size, image_size=416 ):
 
 
     train_loader = DataLoader(train,batch_size=batch_size,shuffle=True, num_workers=4, drop_last=True)
+
+
     test_loader = DataLoader(test,batch_size=batch_size,shuffle=True, num_workers=4, drop_last=True)
     val_loader = DataLoader(val,batch_size=batch_size,shuffle=True, num_workers=4, drop_last=True)
 
