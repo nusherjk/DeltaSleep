@@ -5,6 +5,7 @@ import torch
 
 
 
+
 class RandomCrop(object):
     def imcv2_affine_trans(self, im):
         # Scale and translate
@@ -130,11 +131,13 @@ class EliminateSmallBoxes(object):
 class ToTensor(object):
     def __call__(self, sample):
         image, bboxes = sample['image'], sample['bboxes']
-
         # swap color axis because
         # numpy image: H x W x C
         # torch image: C X H X W
         image = image.transpose((2, 0, 1))
+        #print(bboxes.shape)
+        #bboxes = bboxes.transpose((1,0))
         if len(bboxes) == 0:
-            return {'image': torch.from_numpy(image), 'bboxes': torch.DoubleTensor()}
-        return {'image': torch.from_numpy(image), 'bboxes': torch.from_numpy(bboxes)}
+            return {'image': torch.from_numpy(image).type(torch.FloatTensor), 'bboxes': torch.DoubleTensor()}
+        return {'image': torch.from_numpy(image).type(torch.FloatTensor), 'bboxes': torch.from_numpy(bboxes).type(torch.FloatTensor)}
+

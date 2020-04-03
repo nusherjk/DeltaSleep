@@ -2,11 +2,34 @@ import torch
 import numpy as np
 from torch.autograd import Variable
 import torch.nn as nn
-from dataloader import *
+
 import torch.nn.functional as F
 import cv2
 
 
+from dataloader import getdatasets
+from Yololoss import Yolov2Loss
+from utils2 import  get_map
+from optimizer import get_optimizer
+
+def get_meta():
+    batch_size = 16
+    meta = {}
+    meta['anchors'] = 5
+    meta['classes'] = 5
+    meta['batch_size'] = batch_size
+    meta['threshold'] = 0.6
+    meta['anchor_bias'] = np.array([1.08, 1.19, 3.42, 4.41, 6.63, 11.38, 9.42, 5.11, 16.62, 10.52])
+    meta['scale_no_obj'] = 1
+    meta['scale_coords'] = 1
+    meta['scale_class'] = 1
+    meta['scale_obj'] = 5
+    meta['iteration'] = 0
+    meta['train_samples'] = 45831
+    meta['iterations_per_epoch'] = meta['train_samples'] / batch_size
+    return meta
+
+#tiny yolo v2 arcitecture by our design
 class TinyYolo(nn.Module):
     def __init__(self):
         super(TinyYolo, self).__init__()
@@ -53,7 +76,7 @@ class TinyYolo(nn.Module):
 
         return out
 
-
+#classic Yolov2 29 layer design...
 class ObjectDetectbyYolov2(nn.Module):
     def __init__(self):
         super(ObjectDetectbyYolov2,self).__init__()
@@ -163,6 +186,12 @@ class ObjectDetectbyYolov2(nn.Module):
 
 
 
+
+
+
+
+
+
 def get_test_input():
     img = cv2.imread("dog-cycle-car.png")
     img = cv2.resize(img, (416,416))          #Resize to the input dimension
@@ -176,25 +205,46 @@ def get_test_input():
     return img_
 
 
+
 def train(model, train_data, opt=None, iou_thresh= None):
     train_images = Variable(train_data["image"], requires_grad=True).float()
-    #train_labels = Variable(train_data["bboxes"], requires_grad=False).float()
-    #train_n_true = train_data["n_true"]
-    #opt.zero_grad()
+    train_labels = Variable(train_data["bboxes"], requires_grad=False).float()
+    train_n_true = train_data["n_true"]
+    opt.zero_grad()
     train_output = model(train_images)
-    #loss = Yolov2Loss(train_output, train_labels, train_n_true.numpy())
-    #loss.backward()
-    #opt.step()
-    #train_map = get_map(train_output, train_labels, train_n_true, iou_thresh)
-    #return loss, train_map
-    return train_output
+
+
+    loss = Yolov2Loss(train_output, train_labels, train_n_true.numpy(), get_meta())
+    loss.backward()
+
+    opt.step()
+    #nms = get_nms_boxes(train_output, 0.3, 0.2, get_meta())
+    #print(nms)
+    train_map = get_map(train_output, train_labels, train_n_true, iou_thresh, get_meta())
+    #train_map = 0
+    return loss, train_map
+    #return loss,0
 
 def input_stream():
-    model = ObjectDetectbyYolov2()
-    train_loader, test_loader, val_loader = getdatasets('./data/', batch_size=2)
+    model = TinyYolo()
+    train_loader, test_loader, val_loader = getdatasets('./data/', batch_size=16)
+
 
     for i, train_data in enumerate(train_loader):
-        print(train_data['image'].shape)
+        opt = get_optimizer(model, [0.00001])
+        out,train_map = train(model, train_data, opt=opt, iou_thresh=0.1 )
+        print( out)
+        print(train_map)
+        print()
+        print()
+
+
+def training(epoch):
+    for i in len(epoch):
+        print("epochs: " + i)
+        loss, train_map = input_stream()
+        print("Loss: " + loss)
+        print('Train MAP: ' + train_map)
 
 
 if __name__== '__main__':
